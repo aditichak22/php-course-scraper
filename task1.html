@@ -1,0 +1,109 @@
+<!-- 
+    Aditi Chakravarthi 
+    AXC200021
+    CS 6314 Project
+ -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <link rel="stylesheet" href="//netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://pyscript.net/alpha/pyscript.css" />
+    <script defer src="https://pyscript.net/alpha/pyscript.js"></script>
+    <title>Course Extraction Page</title>
+</head>
+<!-- Adding Python imports as well as downloaded html file-->
+<py-env>
+    - beautifulsoup4
+    - paths:
+        - ./cs-complete1.html
+</py-env>
+
+<body>
+
+    <button id="thebuttonid" class="btn btn-success"type = "submit" pys-onClick="runPython" style="margin: 50px;">Extract Course Info</button>
+    <button class="btn btn-primary" type="button" id="file_save" style="margin: 50px;">Extract Course File</button>
+    <div id="courseNum" style="margin-top: 10px;margin-bottom: 10px;"></div>
+    <div id="firstCourse" style="margin-top: 10px;margin-bottom: 10px;"></div>
+    <div id="lastCourse" style="margin-top: 10px;margin-bottom: 10px;"></div>
+<!-- I used Python BeautifulSoup for web scraping so added the script to PyScript to run in browser -->
+<!-- extractCourses() - regular Python web scraping -->
+<!-- runPython() - function attached to the extract course button for courses information -->
+<!-- file_save() - an async function to use filehandle to write to file and download -->
+<!-- setup_butoon() - a s proxy to add file_save() function to Extract Course File button -->
+         <py-script>
+            from bs4 import BeautifulSoup
+            import asyncio
+            import sys
+            from js import alert, document, Object, window
+            from pyodide import create_proxy, to_js
+            
+            def extractCourses():
+
+                page = open("cs-complete1.html", "r").read()    
+
+                soup = BeautifulSoup(page, "html.parser")
+                
+                mainPage = soup.find(id="bukku-page")
+                courses = mainPage.find_all('p')
+                
+                courseTable = []
+                
+                for course in courses:
+                
+                    course_id = course.find(class_="course_address").a.text
+                    course_address = course.find(class_="course_address").a.get("href")
+                
+                    course_title = course.find(class_="course_title").text
+                    course_hours = course.find(class_="course_hours").text
+                    course_description = course.find(class_="course_hours").next_sibling
+                    course_prerequisite_link = ""
+                    course_prerequisite = ""
+                
+                    if (len(course.find_all("a")) > 1):
+                        course_prerequisite_link = course.find_all("a")[1].get("href")
+                        course_prerequisite = course.find_all("a")[1].text
+                    
+                    courseTable.append((course_id, course_address, course_title, course_hours, 
+                    str(course_description), course_prerequisite_link, course_prerequisite))
+                    
+                numCourses = "Courses extracted: {0}".format(len(courseTable))
+                firstCourse = "Course id: {0}, Course address: {1}, Course title: {2}, Course hours: {3}, Course description: {4}, Course prereq link: {5}, Course prereq: {6}".format(courseTable[0][0], courseTable[0][1], courseTable[0][2], courseTable[0][3], courseTable[0][4], courseTable[0][5], courseTable[0][6])
+                lastCourse = "Course id: {0}, Course address: {1}, Course title: {2}, Course hours: {3}, Course description: {4}, Course prereq link: {5}, Course prereq: {6}".format(courseTable[-1][0], courseTable[-1][1], courseTable[-1][2], courseTable[-1][3], courseTable[-1][4], courseTable[-1][5], courseTable[-1][6])
+                return courseTable, numCourses, firstCourse, lastCourse
+            
+            async def file_save(event):
+                courseTable, numCourses, firstCourse, lastCourse = extractCourses()               
+                try:
+                    options = {
+                        "startIn": "documents",
+                        "suggestedName": "courses.txt"
+                    }
+            
+                    fileHandle = await window.showSaveFilePicker(Object.fromEntries(to_js(options)))
+                except Exception as e:
+                    console.log('Exception: ' + str(e))
+                    return
+        
+        
+                file = await fileHandle.createWritable()
+                for course in courseTable:
+                        line = ' '.join(str(x) for x in course)
+                        await file.write(line + "," +'\n')
+
+                await file.close()
+                return
+                    
+            def runPython(*args, **kwargs):
+                courseTable, numCourses, firstCourse, lastCourse = extractCourses()
+                pyscript.write('courseNum', numCourses)
+                pyscript.write('firstCourse', firstCourse)
+                pyscript.write('lastCourse', lastCourse)
+            
+            def setup_button():
+                file_save_proxy = create_proxy(file_save)
+                document.getElementById("file_save").addEventListener("click", file_save_proxy, False)
+            setup_button()
+        </py-script>
+</body>
+</html>
